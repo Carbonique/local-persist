@@ -28,10 +28,10 @@ jobs:
         run: sudo mkdir -p /docker-data
 
       - name: Build rootfs
-        run: sudo ./scripts/build.sh
+        run: sudo ./scripts/build.sh "ci"
 
       - name: Install plugin
-        run: sudo ./scripts/install.sh
+        run: sudo ./scripts/install.sh "ci"
 
       - name: Integration Tests
-        run: sudo ./scripts/integration.sh
+        run: sudo ./scripts/integration_test.sh "ci"

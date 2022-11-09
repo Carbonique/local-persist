@@ -2,8 +2,11 @@
 
 set -e
 
+TAG=$1
+PLUGIN=ghrc.io/carbonique/local-persist:${TAG}
+
 function create-volume {
-    VOLUME=`docker volume create --driver=local-persist --opt mountpoint=/docker-data/local-persist-integration/ --name=test-data`
+    VOLUME=`docker volume create --driver=${PLUGIN} --opt mountpoint=/docker-data/local-persist-integration/ --name=test-data`
 }
 
 function create-containers {
@@ -21,10 +24,6 @@ function clean {
     docker rm -f $TWO
     docker volume rm $VOLUME
 }
-
-source ./scripts/build.sh
-source ./scripts/install.sh
-
 # setup
 create-volume
 create-containers
@@ -46,7 +45,6 @@ create-containers
 check-containers
 
 clean
-docker plugin disable local-persist
-docker plugin rm local-persist
+
 
 echo -e "\nSuccess!"
