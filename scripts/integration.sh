@@ -25,8 +25,6 @@ function clean {
 source ./scripts/build.sh
 source ./scripts/install.sh
 
-mkdir -p /docker-data
-
 # setup
 create-volume
 create-containers
