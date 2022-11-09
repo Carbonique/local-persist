@@ -25,7 +25,7 @@ jobs:
         uses: docker/setup-buildx-action@v2
 
       - name: Set up Docker data directory
-        uses: sudo mkdir -p /docker-data
+        run: sudo mkdir -p /docker-data
 
       - name: Build rootfs
         run: sudo ./scripts/build.sh
