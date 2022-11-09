@@ -22,6 +22,9 @@ function clean {
     docker volume rm $VOLUME
 }
 
+source ./scripts/build.sh
+source ./scripts/install.sh
+
 mkdir -p /docker-data
 
 # setup
@@ -37,7 +40,6 @@ check-containers
 # delete everything (start over point)
 clean
 
-
 # do it all again, but this time, DON'T manually copy a file... it should have persisted from before!
 create-volume
 create-containers
@@ -46,5 +48,7 @@ create-containers
 check-containers
 
 clean
+docker plugin disable local-persist
+docker plugin rm local-persist
 
 echo -e "\nSuccess!"
