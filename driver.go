@@ -14,7 +14,6 @@ import (
 )
 
 var (
-  testingMode bool
   stateDir string
   stateFile = "local-persist.json"
 )
