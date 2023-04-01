@@ -76,3 +76,21 @@ This has a few advantages over the (default) `local` driver that comes with Dock
 You may have noticed that you could do this with data-only containers, too. And that's true, and using that technique has a few advantages, one thing it (specifically as a limitation of `volumes-from`) does *not* allow, is mounting that shared volume to a different path inside your containers. Trying to recreate the above example, each container would have to store images in the same directory in their containers, instead of separate ones which `local-persist` allows.
 
 Also, using `local-persist` instead of data-only containers, `docker ps -a` won't have extra dead entries, and `docker volume ls` will have more descriptive output (because volumes have names).
+
+## Development
+
+### Building
+
+NOTE: the scripts below assume the user can run `docker` commands without needing `sudo`! If the user needs `sudo`, simply prepend the commands with `sudo` (`sudo ./scripts/build.sh`)
+
+First make sure the directory `/docker-data` exists.
+
+To build run: `./scripts/build.sh <architecture>` (e.g.: `./scripts/build.sh amd64`) 
+
+To install run: `./scripts/install.sh <your-tag-for-the-plugin>` (e.g. `./scripts/install.sh latest`)
+
+To test run: `./scripts/integration_test.sh <your-tag-for-the-plugin>` (e.g. `./scripts/integration_test.sh latest`)
+
+To cleanup run: `./scripts/cleanup_plugin.sh <your-tag-for-the-plugin>` (e.g. `./scripts/cleanup_plugin.sh latest`)
+
+Or all in one go: `./scripts/build-install-integration_test-cleanup_plugin.sh <your-tag-for-the-plugin>` (e.g. `./scripts/build-install-integration_test-cleanup_plugin.sh latest`)
