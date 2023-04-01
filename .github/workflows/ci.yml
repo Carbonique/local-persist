@@ -24,7 +24,7 @@ jobs:
 
       - name: Set tag variable 
         id: vars
-        run: echo ::set-output name=tag::CI-${GITHUB_REF##*/}
+        run: echo ::set-output name=tag::{GITHUB_REF##*/}
       
       - uses: actions/checkout@v3
         with:
@@ -52,11 +52,11 @@ jobs:
         run: sudo ./scripts/build.sh ${{ matrix.arch }}
 
       - name: Install plugin
-        run: sudo ./scripts/install.sh ${{ steps.vars.outputs.tag }}-${{ matrix.arch-short }}
+        run: sudo ./scripts/install.sh CI-${{ steps.vars.outputs.tag }}-${{ matrix.arch-short }}
       
       - name: Test plugin
-        run: sudo ./scripts/integration_test.sh ${{ steps.vars.outputs.tag }}-${{ matrix.arch-short }}
+        run: sudo ./scripts/integration_test.sh CI-${{ steps.vars.outputs.tag }}-${{ matrix.arch-short }}
 
       - name: Push plugin
-        run: docker plugin push ghcr.io/carbonique/local-persist:${{ steps.vars.outputs.tag }}-${{ matrix.arch-short}}
+        run: docker plugin push ghcr.io/carbonique/local-persist:CI-${{ steps.vars.outputs.tag }}-${{ matrix.arch-short}}
 
