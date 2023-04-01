@@ -24,7 +24,7 @@ jobs:
 
       - name: Set tag variable 
         id: vars
-        run: echo ::set-output name=tag::{GITHUB_REF##*/}
+        run: echo ::set-output name=tag::${GITHUB_REF##*/}
       
       - uses: actions/checkout@v3
         with:
