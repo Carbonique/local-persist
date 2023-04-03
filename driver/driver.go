@@ -106,20 +106,20 @@ func (driver *localPersistDriver) Create(req *volume.CreateRequest) error {
 
 	mountpoint := req.Options["mountpoint"]
 
-  switch {
-  case mountpoint == "":
-      mountpoint = path.Join(driver.dataPath, req.Name)
-      log.Infof("No %s option provided. Setting mountpoint to %s \n", "mountpoint", mountpoint)
+	switch {
+	case mountpoint == "":
+		mountpoint = path.Join(driver.dataPath, req.Name)
+		log.Infof("No %s option provided. Setting mountpoint to %s \n", "mountpoint", mountpoint)
 
-  case mountpoint != "":
-    mountpoint = path.Join(driver.dataPath, mountpoint)
-    log.Infof("Mountpoint is %s\n", mountpoint)
+	case mountpoint != "":
+		mountpoint = path.Join(driver.dataPath, mountpoint)
+		log.Infof("Mountpoint is %s\n", mountpoint)
 
-  case mountpoint == "/":
-    return fmt.Errorf("Mountpoint is not allowed to be %s \n", "/")
+	case mountpoint == "/":
+		return fmt.Errorf("Mountpoint is not allowed to be %s \n", "/")
 
-  }
-	
+	}
+
 	err := ensureDir(mountpoint, 0755)
 	if err != nil {
 		return err
