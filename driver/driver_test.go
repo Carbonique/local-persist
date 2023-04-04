@@ -1,316 +1,579 @@
 package driver
 
 import (
-	"fmt"
 	"os"
-	"path"
+	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/docker/go-plugins-helpers/volume"
 )
 
 const (
-	baseDir = "./test"
+	BASEDIR                      = "./test"
+	STATEPATH                    = "./test/state/test-local-persist.json"
+	DATAPATH                     = "./test/data"
+	VOLUME1_NAME                 = "test-volume-1"
+	VOLUME1_REQUESTED_MOUNTPOINT = "volume-1"
+	VOLUME1_ACTUAL_MOUNTPOINT    = "./test/data/volume-1"
+	VOLUME2_NAME                 = "test-volume-2"
+	VOLUME2_REQUESTED_MOUNTPOINT = ""
+	VOLUME2_ACTUAL_MOUNTPOINT    = "./test/data/test-volume-2"
 )
 
-var (
-	stateDir = path.Join(baseDir, "state")
-	dataDir  = path.Join(baseDir, "data")
-)
-
-func init() {
-	if _, err := os.Stat(baseDir); !os.IsNotExist(err) {
-		os.RemoveAll(baseDir)
-	}
+type fields struct {
+	Name      string
+	volumes   map[string]string
+	mutex     *sync.Mutex
+	debug     bool
+	statePath string
+	dataPath  string
 }
 
-func TestCreate(t *testing.T) {
+func returnFieldsEmptyVolume() fields {
+	vol := make(map[string]string)
 
-	tests := map[string]struct {
-		name             string
-		mountpointOption string
-		mountpointPath   string
+	f := fields{
+		Name:      "local-persist-test",
+		volumes:   vol,
+		mutex:     &sync.Mutex{},
+		statePath: STATEPATH,
+		dataPath:  DATAPATH,
+	}
+	return f
+}
+
+func returnFieldsOneVolume() fields {
+	vol := make(map[string]string)
+
+	vol[VOLUME1_NAME] = VOLUME1_ACTUAL_MOUNTPOINT
+
+	f := fields{
+		Name:      "local-persist-test",
+		volumes:   vol,
+		mutex:     &sync.Mutex{},
+		statePath: STATEPATH,
+		dataPath:  DATAPATH,
+	}
+	return f
+}
+
+func returnFieldsTwoVolumes() fields {
+	vol := make(map[string]string)
+
+	vol[VOLUME1_NAME] = VOLUME1_ACTUAL_MOUNTPOINT
+	vol[VOLUME2_NAME] = VOLUME2_ACTUAL_MOUNTPOINT
+
+	f := fields{
+		Name:      "local-persist-test",
+		volumes:   vol,
+		mutex:     &sync.Mutex{},
+		statePath: STATEPATH,
+		dataPath:  DATAPATH,
+	}
+	return f
+}
+
+var volume1 = volume.Volume{
+	Name:       VOLUME1_NAME,
+	Mountpoint: VOLUME1_ACTUAL_MOUNTPOINT,
+}
+
+var volume2 = volume.Volume{
+	Name:       VOLUME2_NAME,
+	Mountpoint: VOLUME2_ACTUAL_MOUNTPOINT,
+}
+
+func Test_localPersistDriver_Create(t *testing.T) {
+
+	volume1_option := make(map[string]string)
+	volume1_option["mountpoint"] = VOLUME1_REQUESTED_MOUNTPOINT
+
+	volume3_option := make(map[string]string)
+	volume3_option["mountpoint"] = "../../joe"
+
+	type args struct {
+		req *volume.CreateRequest
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		wantErr bool
 	}{
-		"create with mountpoint option":       {name: "test-volume", mountpointOption: "/my/directory", mountpointPath: path.Join(dataDir, "/my/directory")},
-		"create with empty mountpoint option": {name: "test-volume", mountpointOption: "", mountpointPath: path.Join(dataDir, "test-volume")},
-	}
-
-	driver := createDriverHelper()
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-
-			createVolumeHelper(driver, t, tc.name, tc.mountpointOption)
-
-			// check that directory is created
-			_, err := os.Stat(tc.mountpointPath)
-			if os.IsNotExist(err) {
-				t.Error("Mountpoint directory was not created", err.Error())
-			}
-
-			// check that volumes has one
-			if len(driver.volumes) != 1 {
-				t.Error("Driver should have exactly 1 volume")
-			}
-
-			volumeCleanupHelper(driver, t, tc.name, tc.mountpointPath)
-		})
-	}
-
-}
-
-func TestGet(t *testing.T) {
-	tests := map[string]struct {
-		name             string
-		mountpointOption string
-		mountpointPath   string
-		expectedName     string
-	}{
-		"create with mountpoint option": {name: "test-volume", mountpointOption: "/my/directory", mountpointPath: path.Join(dataDir, "/my/directory"), expectedName: "test-volume"}}
-
-	driver := createDriverHelper()
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-
-			createVolumeHelper(driver, t, tc.name, tc.mountpointOption)
-
-			req := &volume.GetRequest{Name: tc.name}
-
-			res, err := driver.Get(req)
-			if err != nil {
-				t.Error("Should have found a volume!")
-			}
-
-			if res.Volume.Name != tc.expectedName {
-				t.Error("Incorrect volume name was returned")
-			}
-
-			volumeCleanupHelper(driver, t, tc.name, tc.mountpointPath)
-		})
-	}
-
-}
-
-func TestList(t *testing.T) {
-
-	type volume struct {
-		name             string
-		mountpointOption string
-		mountpointPath   string
-	}
-
-	vol1 := volume{name: "test-volume-1", mountpointOption: "", mountpointPath: path.Join(dataDir, "test-volume-1")}
-	vol2 := volume{name: "test-volume-2", mountpointOption: "", mountpointPath: path.Join(dataDir, "test-volume-2")}
-
-	tests := map[string]struct {
-		volumes         []volume
-		expected_length int
-	}{
-		"list one volume should return one volume":   {volumes: []volume{vol1}, expected_length: 1},
-		"list two volumes should return two volumes": {volumes: []volume{vol1, vol2}, expected_length: 2},
-	}
-
-	driver := createDriverHelper()
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-
-			// Create all volumes
-			for _, vol := range tc.volumes {
-				createVolumeHelper(driver, t, vol.name, vol.mountpointOption)
-			}
-
-			res, err := driver.List()
-
-			if err != nil {
-				t.Error("List returned error")
-			}
-
-			if len(res.Volumes) != tc.expected_length {
-				t.Errorf("Should have found %d volume(s)!", tc.expected_length)
-			}
-
-			// Cleanup all volumes
-			for _, vol := range tc.volumes {
-				volumeCleanupHelper(driver, t, vol.name, vol.mountpointOption)
-			}
-
-		})
-	}
-}
-
-func TestMount(t *testing.T) {
-	// TODO: use table testing
-	testVolumeName := "test-volume"
-	testMountpoint := "test"
-
-	driver := createDriverHelper()
-
-	createVolumeHelper(driver, t, testVolumeName, testMountpoint)
-
-	req := &volume.MountRequest{Name: testVolumeName}
-	_, err := driver.Mount(req)
-
-	if err != nil {
-		t.Error("Error on mount")
-	}
-
-	// Remove a mountpoint, while volume still exists
-	err = os.Remove(path.Join(dataDir, testMountpoint))
-
-	if err != nil {
-		t.Error("Could not remove mountpoint")
-	}
-
-	_, err = driver.Mount(req)
-	if err == nil {
-		t.Error("Mountpoint was deleted but test did not error")
-	}
-
-	// Test to mount an existing file (should not be possible)
-	_, err = os.Create(path.Join(dataDir, testMountpoint))
-	if err != nil {
-		t.Error("Could not create mountpoint as file")
-	}
-
-	_, err = driver.Mount(req)
-	if err == nil {
-		t.Error("Mountpoint is a file but test did not error")
-	}
-	volumeCleanupHelper(driver, t, testVolumeName, testMountpoint)
-}
-
-func TestUnmount(t *testing.T) {
-
-	tests := map[string]struct {
-		name             string
-		exists           bool
-		mountpointOption string
-		mountpointPath   string
-		error_expected   bool
-	}{
-		"Unmount existing volume":   {name: "test-volume-existing", exists: true, mountpointOption: "/my/directory", mountpointPath: path.Join(dataDir, "/my/directory"), error_expected: false},
-		"Mount non-existing volume": {name: "test-volume-non-existing", exists: false, mountpointOption: "", mountpointPath: path.Join(dataDir, "does-not-exist"), error_expected: true},
-	}
-
-	driver := createDriverHelper()
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			if tc.exists {
-				createVolumeHelper(driver, t, tc.name, tc.mountpointOption)
-			}
-
-			req := &volume.UnmountRequest{Name: tc.name}
-			err := driver.Unmount(req)
-
-			if err != nil {
-				if !tc.error_expected {
-					t.Error("Error on unmount")
-				}
-			}
-
-			if tc.exists {
-				volumeCleanupHelper(driver, t, tc.name, tc.mountpointPath)
-			}
-		})
-	}
-
-}
-func TestPath(t *testing.T) {
-
-	tests := map[string]struct {
-		name             string
-		exists           bool
-		mountpointOption string
-		mountpointPath   string
-		error_expected   bool
-	}{
-		"existing volume":     {name: "test-volume-existing", exists: true, mountpointOption: "/my/directory", mountpointPath: path.Join(dataDir, "/my/directory"), error_expected: false},
-		"non-existing volume": {name: "test-volume-non-existing", exists: false, mountpointOption: "", mountpointPath: path.Join(dataDir, "does-not-exist"), error_expected: true},
-	}
-
-	driver := createDriverHelper()
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			if tc.exists {
-				createVolumeHelper(driver, t, tc.name, tc.mountpointOption)
-
-				req := &volume.PathRequest{Name: tc.name}
-
-				v, err := driver.Path(req)
-
-				if err != nil {
-					t.Error("Error on path")
-				}
-
-				if v.Mountpoint != tc.mountpointPath {
-					t.Error("Mountpoint should be equal to defaultTestMountpoint")
-				}
-				volumeCleanupHelper(driver, t, tc.name, tc.mountpointPath)
-			}
-
-			if !tc.exists {
-				reqFail := &volume.PathRequest{Name: tc.name}
-				_, err := driver.Path(reqFail)
-
-				if err != nil {
-					if !tc.error_expected {
-						t.Error("Test should fail as volume does not exist")
-					}
-				}
-			}
-
-		})
-	}
-
-}
-
-func createVolumeHelper(driver *localPersistDriver, t *testing.T, name string, mountpoint string) {
-
-	req := &volume.CreateRequest{
-		Name: name,
-		Options: map[string]string{
-			"mountpoint": mountpoint,
+		{
+			name:   "Create volume with mountpoint option",
+			fields: returnFieldsEmptyVolume(),
+			args: args{
+				req: &volume.CreateRequest{
+					Name:    VOLUME1_NAME,
+					Options: volume1_option,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name:   "Create volume without mountpoint option",
+			fields: returnFieldsEmptyVolume(),
+			args: args{
+				&volume.CreateRequest{
+					Name: VOLUME2_NAME,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name:   "Create volume outside mountpoint option",
+			fields: returnFieldsEmptyVolume(),
+			args: args{
+				req: &volume.CreateRequest{
+					Name:    "i-try-to-escape",
+					Options: volume3_option,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name:   "Create volume outside basedir mountpoint option",
+			fields: returnFieldsEmptyVolume(),
+			args: args{
+				&volume.CreateRequest{
+					Name: VOLUME2_NAME,
+				},
+			},
+			wantErr: false,
 		},
 	}
-
-	err := driver.Create(req)
-
-	if err != nil {
-		t.Error(err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			driver := &localPersistDriver{
+				Name:      tt.fields.Name,
+				volumes:   tt.fields.volumes,
+				mutex:     tt.fields.mutex,
+				debug:     tt.fields.debug,
+				statePath: tt.fields.statePath,
+				dataPath:  tt.fields.dataPath,
+			}
+			if err := driver.Create(tt.args.req); (err != nil) != tt.wantErr {
+				t.Errorf("localPersistDriver.Create() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
 	}
 }
 
-func volumeCleanupHelper(driver *localPersistDriver, t *testing.T, name string, mountpoint string) {
-	os.RemoveAll(mountpoint)
-
-	_, err := os.Stat(mountpoint)
-	if !os.IsNotExist(err) {
-		t.Error("[Cleanup] Mountpoint still exists:", err.Error())
+func Test_localPersistDriver_Remove(t *testing.T) {
+	type fields struct {
+		Name      string
+		volumes   map[string]string
+		mutex     *sync.Mutex
+		debug     bool
+		statePath string
+		dataPath  string
 	}
-
-	removeReq := &volume.RemoveRequest{Name: name}
-
-	err = driver.Remove(removeReq)
-	if err != nil {
-		t.Error("Remove failed", err)
+	type args struct {
+		req *volume.RemoveRequest
 	}
-
-	getReq := &volume.GetRequest{Name: name}
-
-	//Volume should be nil, as it is deleted
-	v, err := driver.Get(getReq)
-
-	if v.Volume != nil {
-		t.Error(err)
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			driver := &localPersistDriver{
+				Name:      tt.fields.Name,
+				volumes:   tt.fields.volumes,
+				mutex:     tt.fields.mutex,
+				debug:     tt.fields.debug,
+				statePath: tt.fields.statePath,
+				dataPath:  tt.fields.dataPath,
+			}
+			if err := driver.Remove(tt.args.req); (err != nil) != tt.wantErr {
+				t.Errorf("localPersistDriver.Remove() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
 	}
 }
 
-func createDriverHelper() *localPersistDriver {
-	d, err := NewLocalPersistDriver(stateDir, dataDir)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
+func Test_localPersistDriver_Mount(t *testing.T) {
+	type fields struct {
+		Name      string
+		volumes   map[string]string
+		mutex     *sync.Mutex
+		debug     bool
+		statePath string
+		dataPath  string
 	}
+	type args struct {
+		req *volume.MountRequest
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    *volume.MountResponse
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			driver := &localPersistDriver{
+				Name:      tt.fields.Name,
+				volumes:   tt.fields.volumes,
+				mutex:     tt.fields.mutex,
+				debug:     tt.fields.debug,
+				statePath: tt.fields.statePath,
+				dataPath:  tt.fields.dataPath,
+			}
+			got, err := driver.Mount(tt.args.req)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("localPersistDriver.Mount() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("localPersistDriver.Mount() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
 
-	return d
+func Test_localPersistDriver_Path(t *testing.T) {
+	type fields struct {
+		Name      string
+		volumes   map[string]string
+		mutex     *sync.Mutex
+		debug     bool
+		statePath string
+		dataPath  string
+	}
+	type args struct {
+		req *volume.PathRequest
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    *volume.PathResponse
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			driver := &localPersistDriver{
+				Name:      tt.fields.Name,
+				volumes:   tt.fields.volumes,
+				mutex:     tt.fields.mutex,
+				debug:     tt.fields.debug,
+				statePath: tt.fields.statePath,
+				dataPath:  tt.fields.dataPath,
+			}
+			got, err := driver.Path(tt.args.req)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("localPersistDriver.Path() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("localPersistDriver.Path() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_localPersistDriver_Unmount(t *testing.T) {
+	type fields struct {
+		Name      string
+		volumes   map[string]string
+		mutex     *sync.Mutex
+		debug     bool
+		statePath string
+		dataPath  string
+	}
+	type args struct {
+		req *volume.UnmountRequest
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			driver := &localPersistDriver{
+				Name:      tt.fields.Name,
+				volumes:   tt.fields.volumes,
+				mutex:     tt.fields.mutex,
+				debug:     tt.fields.debug,
+				statePath: tt.fields.statePath,
+				dataPath:  tt.fields.dataPath,
+			}
+			if err := driver.Unmount(tt.args.req); (err != nil) != tt.wantErr {
+				t.Errorf("localPersistDriver.Unmount() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func Test_localPersistDriver_Capabilities(t *testing.T) {
+	type fields struct {
+		Name      string
+		volumes   map[string]string
+		mutex     *sync.Mutex
+		debug     bool
+		statePath string
+		dataPath  string
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		want   *volume.CapabilitiesResponse
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			driver := &localPersistDriver{
+				Name:      tt.fields.Name,
+				volumes:   tt.fields.volumes,
+				mutex:     tt.fields.mutex,
+				debug:     tt.fields.debug,
+				statePath: tt.fields.statePath,
+				dataPath:  tt.fields.dataPath,
+			}
+			if got := driver.Capabilities(); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("localPersistDriver.Capabilities() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_localPersistDriver_exists(t *testing.T) {
+	type fields struct {
+		Name      string
+		volumes   map[string]string
+		mutex     *sync.Mutex
+		debug     bool
+		statePath string
+		dataPath  string
+	}
+	type args struct {
+		name string
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		want   bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			driver := &localPersistDriver{
+				Name:      tt.fields.Name,
+				volumes:   tt.fields.volumes,
+				mutex:     tt.fields.mutex,
+				debug:     tt.fields.debug,
+				statePath: tt.fields.statePath,
+				dataPath:  tt.fields.dataPath,
+			}
+			if got := driver.exists(tt.args.name); got != tt.want {
+				t.Errorf("localPersistDriver.exists() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_localPersistDriver_volume(t *testing.T) {
+	type fields struct {
+		Name      string
+		volumes   map[string]string
+		mutex     *sync.Mutex
+		debug     bool
+		statePath string
+		dataPath  string
+	}
+	type args struct {
+		name string
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		want   *volume.Volume
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			driver := &localPersistDriver{
+				Name:      tt.fields.Name,
+				volumes:   tt.fields.volumes,
+				mutex:     tt.fields.mutex,
+				debug:     tt.fields.debug,
+				statePath: tt.fields.statePath,
+				dataPath:  tt.fields.dataPath,
+			}
+			if got := driver.volume(tt.args.name); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("localPersistDriver.volume() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_localPersistDriver_findExistingVolumesFromStateFile(t *testing.T) {
+	type fields struct {
+		Name      string
+		volumes   map[string]string
+		mutex     *sync.Mutex
+		debug     bool
+		statePath string
+		dataPath  string
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		want    map[string]string
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			driver := &localPersistDriver{
+				Name:      tt.fields.Name,
+				volumes:   tt.fields.volumes,
+				mutex:     tt.fields.mutex,
+				debug:     tt.fields.debug,
+				statePath: tt.fields.statePath,
+				dataPath:  tt.fields.dataPath,
+			}
+			got, err := driver.findExistingVolumesFromStateFile()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("localPersistDriver.findExistingVolumesFromStateFile() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("localPersistDriver.findExistingVolumesFromStateFile() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_localPersistDriver_saveState(t *testing.T) {
+	type fields struct {
+		Name      string
+		volumes   map[string]string
+		mutex     *sync.Mutex
+		debug     bool
+		statePath string
+		dataPath  string
+	}
+	type args struct {
+		volumes map[string]string
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			driver := &localPersistDriver{
+				Name:      tt.fields.Name,
+				volumes:   tt.fields.volumes,
+				mutex:     tt.fields.mutex,
+				debug:     tt.fields.debug,
+				statePath: tt.fields.statePath,
+				dataPath:  tt.fields.dataPath,
+			}
+			if err := driver.saveState(tt.args.volumes); (err != nil) != tt.wantErr {
+				t.Errorf("localPersistDriver.saveState() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func Test_ensureDir(t *testing.T) {
+	type args struct {
+		path string
+		perm os.FileMode
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := ensureDir(tt.args.path, tt.args.perm); (err != nil) != tt.wantErr {
+				t.Errorf("ensureDir() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func Test_localPersistDriver_List(t *testing.T) {
+	tests := []struct {
+		name    string
+		fields  fields
+		want    *volume.ListResponse
+		wantErr bool
+	}{
+		{
+			name:    "List empty volumes",
+			fields:  returnFieldsEmptyVolume(),
+			want:    &volume.ListResponse{},
+			wantErr: false,
+		},
+		{
+			name:   "List one volume",
+			fields: returnFieldsOneVolume(),
+			want: &volume.ListResponse{
+				Volumes: []*volume.Volume{&volume1},
+			},
+			wantErr: false,
+		},
+		{
+			name:   "List two volumes",
+			fields: returnFieldsTwoVolumes(),
+			want: &volume.ListResponse{
+				Volumes: []*volume.Volume{&volume1, &volume2},
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			driver := &localPersistDriver{
+				Name:      tt.fields.Name,
+				volumes:   tt.fields.volumes,
+				mutex:     tt.fields.mutex,
+				debug:     tt.fields.debug,
+				statePath: tt.fields.statePath,
+				dataPath:  tt.fields.dataPath,
+			}
+			got, err := driver.List()
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("localPersistDriver.List() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("localPersistDriver.List() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
