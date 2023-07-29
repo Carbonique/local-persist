@@ -57,7 +57,7 @@ func NewLocalPersistDriver(statePath string, dataPath string) (*localPersistDriv
 		return nil, err
 	}
 
-	driver.volumes, _ = driver.findExistingVolumesFromSTATEFILE()
+	driver.volumes, _ = driver.findExistingVolumesFromStatefile()
 	log.Infof("Found %d volumes on startup", len(driver.volumes))
 	return &driver, nil
 }
@@ -247,7 +247,7 @@ func (driver *localPersistDriver) volume(name string) *volume.Volume {
 	}
 }
 
-func (driver *localPersistDriver) findExistingVolumesFromSTATEFILE() (map[string]string, error) {
+func (driver *localPersistDriver) findExistingVolumesFromStatefile() (map[string]string, error) {
 	path := driver.stateFilePath
 	fileData, err := os.ReadFile(path)
 	if err != nil {
