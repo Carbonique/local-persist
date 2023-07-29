@@ -29,14 +29,14 @@ var volume2 = volume.Volume{
 
 type fields struct {
 	Name          string
-	volumes       map[string]string
+	volumes       map[string]*localPersistVolume
 	mutex         *sync.Mutex
 	stateFilePath string
 	dataPath      string
 }
 
 func returnFieldsEmptyVolume() fields {
-	vol := make(map[string]string)
+	vol := make(map[string]*localPersistVolume)
 
 	f := fields{
 		Name:          "local-persist-test",
@@ -49,9 +49,9 @@ func returnFieldsEmptyVolume() fields {
 }
 
 func returnFieldsOneVolume() fields {
-	vol := make(map[string]string)
+	vol := make(map[string]*localPersistVolume)
 
-	vol[volume1.Name] = volume1.Mountpoint
+    vol[volume1.Name] = &localPersistVolume{MountPoint: volume1.Mountpoint}
 
 	f := fields{
 		Name:          "local-persist-test",
@@ -64,10 +64,10 @@ func returnFieldsOneVolume() fields {
 }
 
 func returnFieldsTwoVolumes() fields {
-	vol := make(map[string]string)
+	vol := make(map[string]*localPersistVolume)
 
-	vol[volume1.Name] = volume1.Mountpoint
-	vol[volume2.Name] = volume2.Mountpoint
+    vol[volume1.Name] = &localPersistVolume{MountPoint: volume1.Mountpoint}
+    vol[volume2.Name] = &localPersistVolume{MountPoint: volume2.Mountpoint}
 
 	f := fields{
 		Name:          "local-persist-test",
@@ -181,11 +181,13 @@ func Test_localPersistDriver_List(t *testing.T) {
 				dataPath:      tt.fields.dataPath,
 			}
 			got, err := driver.List()
-			if (err != nil) != tt.wantErr {
+
+            if (err != nil) != tt.wantErr {
 				t.Errorf("localPersistDriver.List() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
+§
+            if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("localPersistDriver.List() = %v, want %v", got, tt.want)
 			}
 		})
@@ -390,8 +392,8 @@ func Test_localPersistDriver_Mount(t *testing.T) {
 		Mountpoint: path.Join(DATAPATH, "test-volume-3"),
 	}
 
-	volumes := make(map[string]string)
-	volumes[existingVolume.Name] = existingVolume.Mountpoint
+	volumes := make(map[string]*localPersistVolume)
+    volumes[existingVolume.Name] = &localPersistVolume{MountPoint: existingVolume.Mountpoint}
 
 	existingVolumeFields := fields{
 		Name:          "local-persist-test",
@@ -412,8 +414,8 @@ func Test_localPersistDriver_Mount(t *testing.T) {
 	}
 
 	// Create the file needed to test the mounting of a file
-	volumes = make(map[string]string)
-	volumes[fileDisguisedAsVolume.Name] = fileDisguisedAsVolume.Mountpoint
+	volumes = make(map[string]*localPersistVolume)
+    volumes[fileDisguisedAsVolume.Name] = &localPersistVolume{MountPoint: fileDisguisedAsVolume.Mountpoint}
 
 	fileDisguisedAsVolumeFields := fields{
 		Name:          "local-persist-test",

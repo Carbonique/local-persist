@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+    "time"
 
 	"github.com/docker/go-plugins-helpers/volume"
 	log "github.com/sirupsen/logrus"
@@ -20,10 +21,15 @@ const STATEFILE = "local-persist.json"
 
 type localPersistDriver struct {
 	Name          string
-	volumes       map[string]string
+	volumes       map[string]*localPersistVolume
 	mutex         *sync.Mutex
 	stateFilePath string
 	dataPath      string
+}
+
+type localPersistVolume struct {
+    MountPoint string
+    CreatedAt  string
 }
 
 type saveData struct {
@@ -39,7 +45,7 @@ func NewLocalPersistDriver(statePath string, dataPath string) (*localPersistDriv
 
 	driver := localPersistDriver{
 		Name:          "local-persist",
-		volumes:       map[string]string{},
+		volumes:       map[string]*localPersistVolume{},
 		mutex:         &sync.Mutex{},
 		stateFilePath: path.Join(statePath, STATEFILE),
 		dataPath:      dataPath,
@@ -57,7 +63,19 @@ func NewLocalPersistDriver(statePath string, dataPath string) (*localPersistDriv
 		return nil, err
 	}
 
-	driver.volumes, _ = driver.findExistingVolumesFromStatefile()
+	data, err := os.ReadFile(driver.stateFilePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+            log.Debugf("No state found in path: %s", driver.stateFilePath)
+		} else {
+			return nil, err
+		}
+	} else {
+		if err := json.Unmarshal(data, &driver.volumes); err != nil {
+			return nil, err
+		}
+	}
+
 	log.Infof("Found %d volumes on startup", len(driver.volumes))
 	return &driver, nil
 }
@@ -68,7 +86,9 @@ func (driver *localPersistDriver) Get(req *volume.GetRequest) (*volume.GetRespon
 	driver.mutex.Lock()
 	defer driver.mutex.Unlock()
 
-	if !driver.exists(req.Name) {
+	v, ok := driver.volumes[req.Name]
+    if !ok {
+
 		log.Errorf("Could not find %s", req.Name)
 
 		return &volume.GetResponse{}, fmt.Errorf("no volume found with the name %s", req.Name)
@@ -76,7 +96,7 @@ func (driver *localPersistDriver) Get(req *volume.GetRequest) (*volume.GetRespon
 
 	log.Debugf("Found %s", req.Name)
 
-	return &volume.GetResponse{Volume: driver.volume(req.Name)}, nil
+    return &volume.GetResponse{Volume: &volume.Volume{Name: req.Name, Mountpoint: v.MountPoint}}, nil
 }
 
 func (driver *localPersistDriver) List() (*volume.ListResponse, error) {
@@ -86,11 +106,11 @@ func (driver *localPersistDriver) List() (*volume.ListResponse, error) {
 	defer driver.mutex.Unlock()
 
 	var volumes []*volume.Volume
-	for name := range driver.volumes {
-		volumes = append(volumes, driver.volume(name))
+	for name, v := range driver.volumes {
+		volumes = append(volumes, &volume.Volume{Name: name, Mountpoint: v.MountPoint})
 	}
 
-	log.Debugf("Found %d volumes", len(driver.volumes))
+	log.Debugf("Found %d volumes", len(volumes))
 
 	return &volume.ListResponse{Volumes: volumes}, nil
 }
@@ -101,16 +121,18 @@ func (driver *localPersistDriver) Create(req *volume.CreateRequest) error {
 	driver.mutex.Lock()
 	defer driver.mutex.Unlock()
 
-	if driver.exists(req.Name) {
+	_, exists := driver.volumes[req.Name]
+	if exists {
 		return fmt.Errorf("the volume %s already exists", req.Name)
 	}
 
+    vol := &localPersistVolume{}
 	mountpoint := req.Options["mountpoint"]
 
 	switch {
 	case mountpoint == "":
 		mountpoint = path.Join(driver.dataPath, req.Name)
-		log.Debugf("No %s option provided. Setting mountpoint to %s", "mountpoint", mountpoint)
+		log.Debugf("No mountpoint option provided. Setting mountpoint to %s", mountpoint)
 
 	case mountpoint != "":
 		mountpoint = path.Join(driver.dataPath, mountpoint)
@@ -130,20 +152,25 @@ func (driver *localPersistDriver) Create(req *volume.CreateRequest) error {
 	if err != nil {
 		return err
 	}
+    timestamp := time.Now().Format("2006-01-02 15:04:05")
 
-	log.Debugf("Ensuring directory %s exists", mountpoint)
+    log.Debugf("Ensuring directory %s exists", mountpoint)
 
 	if err != nil {
 		return fmt.Errorf("%17s could not create directory %s", " ", mountpoint)
 	}
 
-	driver.volumes[req.Name] = mountpoint
-	e := driver.saveState(driver.volumes)
-	if e != nil {
-		return fmt.Errorf("error %s", e)
+    vol.MountPoint = mountpoint
+    vol.CreatedAt = timestamp
+
+	driver.volumes[req.Name] = vol
+
+    err = driver.saveState()
+	if err != nil {
+		return fmt.Errorf("error %s", err)
 	}
 
-	log.Infof("Created volume %s with mountpoint %s", req.Name, mountpoint)
+	log.Infof("Created volume %s at %s with mountpoint %s", req.Name, timestamp, mountpoint)
 
 	return nil
 }
@@ -155,13 +182,13 @@ func (driver *localPersistDriver) Remove(req *volume.RemoveRequest) error {
 	defer driver.mutex.Unlock()
 
 	_, ok := driver.volumes[req.Name]
-	// If the key exists
+	// Check if the key exists
 	if !ok {
 		return fmt.Errorf("error deleting volume %s failed as it does not exist", req.Name)
 	}
 	delete(driver.volumes, req.Name)
 
-	err := driver.saveState(driver.volumes)
+	err := driver.saveState()
 	if err != nil {
 		return fmt.Errorf("error %s", err)
 	}
@@ -177,12 +204,14 @@ func (driver *localPersistDriver) Mount(req *volume.MountRequest) (*volume.Mount
 	driver.mutex.Lock()
 	defer driver.mutex.Unlock()
 
-	p, ok := driver.volumes[req.Name]
+	v, ok := driver.volumes[req.Name]
 
 	if !ok {
 		return &volume.MountResponse{}, fmt.Errorf("volume %s not found", req.Name)
-	} // Now check if the path still exists
-	f, err := os.Stat(p)
+	}
+    // Now check if the path still exists
+    p := v.MountPoint
+    f, err := os.Stat(p)
 
 	// If the path does not exist
 	if errors.Is(err, fs.ErrNotExist) {
@@ -211,7 +240,7 @@ func (driver *localPersistDriver) Path(req *volume.PathRequest) (*volume.PathRes
 	}
 	log.Debugf("Returned path %s", v)
 
-	return &volume.PathResponse{Mountpoint: driver.volumes[req.Name]}, nil
+	return &volume.PathResponse{Mountpoint: v.MountPoint}, nil
 }
 
 func (driver *localPersistDriver) Unmount(req *volume.UnmountRequest) error {
@@ -236,39 +265,9 @@ func (driver *localPersistDriver) Capabilities() *volume.CapabilitiesResponse {
 	return &volume.CapabilitiesResponse{Capabilities: volume.Capability{Scope: "local"}}
 }
 
-func (driver *localPersistDriver) exists(name string) bool {
-	return driver.volumes[name] != ""
-}
+func (driver *localPersistDriver) saveState() error {
 
-func (driver *localPersistDriver) volume(name string) *volume.Volume {
-	return &volume.Volume{
-		Name:       name,
-		Mountpoint: driver.volumes[name],
-	}
-}
-
-func (driver *localPersistDriver) findExistingVolumesFromStatefile() (map[string]string, error) {
-	path := driver.stateFilePath
-	fileData, err := os.ReadFile(path)
-	if err != nil {
-		return map[string]string{}, err
-	}
-
-	var data saveData
-	e := json.Unmarshal(fileData, &data)
-	if e != nil {
-		return map[string]string{}, e
-	}
-
-	return data.State, nil
-}
-
-func (driver *localPersistDriver) saveState(volumes map[string]string) error {
-	data := saveData{
-		State: volumes,
-	}
-
-	fileData, err := json.Marshal(data)
+	fileData, err := json.Marshal(driver.volumes)
 	if err != nil {
 		return err
 	}
