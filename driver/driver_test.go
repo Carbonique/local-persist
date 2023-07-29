@@ -20,11 +20,13 @@ const (
 var volume1 = volume.Volume{
 	Name:       "test-volume-1",
 	Mountpoint: path.Join("myDir", "test-volume-1"),
+    CreatedAt:  "2006-01-02t15:04:05z07:00",
 }
 
 var volume2 = volume.Volume{
 	Name:       "test-volume-2",
 	Mountpoint: path.Join("test-volume-2"),
+    CreatedAt: "2006-01-03t15:04:05z07:00",
 }
 
 type fields struct {
@@ -51,7 +53,7 @@ func returnFieldsEmptyVolume() fields {
 func returnFieldsOneVolume() fields {
 	vol := make(map[string]*localPersistVolume)
 
-    vol[volume1.Name] = &localPersistVolume{MountPoint: volume1.Mountpoint}
+    vol[volume1.Name] = &localPersistVolume{Mountpoint: volume1.Mountpoint, CreatedAt: volume1.CreatedAt}
 
 	f := fields{
 		Name:          "local-persist-test",
@@ -66,8 +68,8 @@ func returnFieldsOneVolume() fields {
 func returnFieldsTwoVolumes() fields {
 	vol := make(map[string]*localPersistVolume)
 
-    vol[volume1.Name] = &localPersistVolume{MountPoint: volume1.Mountpoint}
-    vol[volume2.Name] = &localPersistVolume{MountPoint: volume2.Mountpoint}
+    vol[volume1.Name] = &localPersistVolume{Mountpoint: volume1.Mountpoint, CreatedAt: volume1.CreatedAt}
+    vol[volume2.Name] = &localPersistVolume{Mountpoint: volume2.Mountpoint, CreatedAt: volume2.CreatedAt}
 
 	f := fields{
 		Name:          "local-persist-test",
@@ -393,7 +395,7 @@ func Test_localPersistDriver_Mount(t *testing.T) {
 	}
 
 	volumes := make(map[string]*localPersistVolume)
-    volumes[existingVolume.Name] = &localPersistVolume{MountPoint: existingVolume.Mountpoint}
+    volumes[existingVolume.Name] = &localPersistVolume{Mountpoint: existingVolume.Mountpoint}
 
 	existingVolumeFields := fields{
 		Name:          "local-persist-test",
@@ -415,7 +417,7 @@ func Test_localPersistDriver_Mount(t *testing.T) {
 
 	// Create the file needed to test the mounting of a file
 	volumes = make(map[string]*localPersistVolume)
-    volumes[fileDisguisedAsVolume.Name] = &localPersistVolume{MountPoint: fileDisguisedAsVolume.Mountpoint}
+    volumes[fileDisguisedAsVolume.Name] = &localPersistVolume{Mountpoint: fileDisguisedAsVolume.Mountpoint}
 
 	fileDisguisedAsVolumeFields := fields{
 		Name:          "local-persist-test",
