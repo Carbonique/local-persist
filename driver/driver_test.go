@@ -4,7 +4,6 @@ import (
 	"os"
 	"path"
 	"reflect"
-	"sync"
 	"testing"
 
 	"github.com/docker/go-plugins-helpers/volume"
@@ -32,7 +31,6 @@ var volume2 = volume.Volume{
 type fields struct {
 	Name          string
 	volumes       map[string]*localPersistVolume
-	mutex         *sync.Mutex
 	stateFilePath string
 	dataPath      string
 }
@@ -43,7 +41,6 @@ func returnFieldsEmptyVolume() fields {
 	f := fields{
 		Name:          "local-persist-test",
 		volumes:       vol,
-		mutex:         &sync.Mutex{},
 		stateFilePath: STATEFILEPATH,
 		dataPath:      DATAPATH,
 	}
@@ -58,7 +55,6 @@ func returnFieldsOneVolume() fields {
 	f := fields{
 		Name:          "local-persist-test",
 		volumes:       vol,
-		mutex:         &sync.Mutex{},
 		stateFilePath: STATEFILEPATH,
 		dataPath:      DATAPATH,
 	}
@@ -74,7 +70,6 @@ func returnFieldsTwoVolumes() fields {
 	f := fields{
 		Name:          "local-persist-test",
 		volumes:       vol,
-		mutex:         &sync.Mutex{},
 		stateFilePath: STATEFILEPATH,
 		dataPath:      DATAPATH,
 	}
@@ -126,7 +121,6 @@ func Test_localPersistDriver_Get(t *testing.T) {
 			driver := &localPersistDriver{
 				Name:          tt.fields.Name,
 				volumes:       tt.fields.volumes,
-				mutex:         tt.fields.mutex,
 				stateFilePath: tt.fields.stateFilePath,
 				dataPath:      tt.fields.dataPath,
 			}
@@ -178,7 +172,6 @@ func Test_localPersistDriver_List(t *testing.T) {
 			driver := &localPersistDriver{
 				Name:          tt.fields.Name,
 				volumes:       tt.fields.volumes,
-				mutex:         tt.fields.mutex,
 				stateFilePath: tt.fields.stateFilePath,
 				dataPath:      tt.fields.dataPath,
 			}
@@ -316,7 +309,6 @@ func Test_localPersistDriver_Create(t *testing.T) {
 			driver := &localPersistDriver{
 				Name:          tt.fields.Name,
 				volumes:       tt.fields.volumes,
-				mutex:         tt.fields.mutex,
 				stateFilePath: tt.fields.stateFilePath,
 				dataPath:      tt.fields.dataPath,
 			}
@@ -370,7 +362,6 @@ func Test_localPersistDriver_Remove(t *testing.T) {
 			driver := &localPersistDriver{
 				Name:          tt.fields.Name,
 				volumes:       tt.fields.volumes,
-				mutex:         tt.fields.mutex,
 				stateFilePath: tt.fields.stateFilePath,
 				dataPath:      tt.fields.dataPath,
 			}
@@ -400,7 +391,6 @@ func Test_localPersistDriver_Mount(t *testing.T) {
 	existingVolumeFields := fields{
 		Name:          "local-persist-test",
 		volumes:       volumes,
-		mutex:         &sync.Mutex{},
 		stateFilePath: STATEFILEPATH,
 		dataPath:      DATAPATH,
 	}
@@ -422,7 +412,6 @@ func Test_localPersistDriver_Mount(t *testing.T) {
 	fileDisguisedAsVolumeFields := fields{
 		Name:          "local-persist-test",
 		volumes:       volumes,
-		mutex:         &sync.Mutex{},
 		stateFilePath: STATEFILEPATH,
 		dataPath:      DATAPATH,
 	}
@@ -494,7 +483,6 @@ func Test_localPersistDriver_Mount(t *testing.T) {
 			driver := &localPersistDriver{
 				Name:          tt.fields.Name,
 				volumes:       tt.fields.volumes,
-				mutex:         tt.fields.mutex,
 				stateFilePath: tt.fields.stateFilePath,
 				dataPath:      tt.fields.dataPath,
 			}
@@ -552,7 +540,6 @@ func Test_localPersistDriver_Path(t *testing.T) {
 			driver := &localPersistDriver{
 				Name:          tt.fields.Name,
 				volumes:       tt.fields.volumes,
-				mutex:         tt.fields.mutex,
 				stateFilePath: tt.fields.stateFilePath,
 				dataPath:      tt.fields.dataPath,
 			}
@@ -605,7 +592,6 @@ func Test_localPersistDriver_Unmount(t *testing.T) {
 			driver := &localPersistDriver{
 				Name:          tt.fields.Name,
 				volumes:       tt.fields.volumes,
-				mutex:         tt.fields.mutex,
 				stateFilePath: tt.fields.stateFilePath,
 				dataPath:      tt.fields.dataPath,
 			}
