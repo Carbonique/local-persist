@@ -186,7 +186,7 @@ func Test_localPersistDriver_List(t *testing.T) {
 				t.Errorf("localPersistDriver.List() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-§
+
             if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("localPersistDriver.List() = %v, want %v", got, tt.want)
 			}

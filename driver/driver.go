@@ -152,7 +152,8 @@ func (driver *localPersistDriver) Create(req *volume.CreateRequest) error {
 	if err != nil {
 		return err
 	}
-    timestamp := time.Now().Format("2006-01-02 15:04:05")
+    // Docker daemon seems to need this format for parsing
+    timestamp := time.Now().Local().Format("2006-01-02T15:04:05Z07:00")
 
     log.Debugf("Ensuring directory %s exists", mountpoint)
 
