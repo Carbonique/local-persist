@@ -20,9 +20,10 @@ import (
 const STATEFILE = "local-persist.json"
 
 type localPersistDriver struct {
-	Name          string
+	sync.RWMutex
+
+    Name          string
 	volumes       map[string]*localPersistVolume
-	mutex         *sync.Mutex
 	stateFilePath string
 	dataPath      string
 }
@@ -46,7 +47,6 @@ func NewLocalPersistDriver(statePath string, dataPath string) (*localPersistDriv
 	driver := localPersistDriver{
 		Name:          "local-persist",
 		volumes:       map[string]*localPersistVolume{},
-		mutex:         &sync.Mutex{},
 		stateFilePath: path.Join(statePath, STATEFILE),
 		dataPath:      dataPath,
 	}
@@ -83,8 +83,8 @@ func NewLocalPersistDriver(statePath string, dataPath string) (*localPersistDriv
 func (driver *localPersistDriver) Get(req *volume.GetRequest) (*volume.GetResponse, error) {
 	log.Debug("Get called")
 
-	driver.mutex.Lock()
-	defer driver.mutex.Unlock()
+	driver.RLock()
+	defer driver.RUnlock()
 
 	v, ok := driver.volumes[req.Name]
     if !ok {
@@ -102,8 +102,8 @@ func (driver *localPersistDriver) Get(req *volume.GetRequest) (*volume.GetRespon
 func (driver *localPersistDriver) List() (*volume.ListResponse, error) {
 	log.Debug("List called")
 
-	driver.mutex.Lock()
-	defer driver.mutex.Unlock()
+	driver.RLock()
+	defer driver.RUnlock()
 
 	var volumes []*volume.Volume
 	for name, v := range driver.volumes {
@@ -118,8 +118,8 @@ func (driver *localPersistDriver) List() (*volume.ListResponse, error) {
 func (driver *localPersistDriver) Create(req *volume.CreateRequest) error {
 	log.Debug("Create called")
 
-	driver.mutex.Lock()
-	defer driver.mutex.Unlock()
+	driver.Lock()
+	defer driver.Unlock()
 
 	_, exists := driver.volumes[req.Name]
 	if exists {
@@ -179,8 +179,8 @@ func (driver *localPersistDriver) Create(req *volume.CreateRequest) error {
 func (driver *localPersistDriver) Remove(req *volume.RemoveRequest) error {
 	log.Debug("Remove called")
 
-	driver.mutex.Lock()
-	defer driver.mutex.Unlock()
+	driver.Lock()
+	defer driver.Unlock()
 
 	_, ok := driver.volumes[req.Name]
 	// Check if the key exists
@@ -202,8 +202,8 @@ func (driver *localPersistDriver) Remove(req *volume.RemoveRequest) error {
 func (driver *localPersistDriver) Mount(req *volume.MountRequest) (*volume.MountResponse, error) {
 	log.Debug("Mount called")
 
-	driver.mutex.Lock()
-	defer driver.mutex.Unlock()
+	driver.RLock()
+	defer driver.RUnlock()
 
 	v, ok := driver.volumes[req.Name]
 
@@ -232,8 +232,8 @@ func (driver *localPersistDriver) Mount(req *volume.MountRequest) (*volume.Mount
 func (driver *localPersistDriver) Path(req *volume.PathRequest) (*volume.PathResponse, error) {
 	log.Debug("Mount called")
 
-	driver.mutex.Lock()
-	defer driver.mutex.Unlock()
+	driver.RLock()
+	defer driver.RUnlock()
 
 	v, ok := driver.volumes[req.Name]
 	if !ok {
@@ -247,8 +247,8 @@ func (driver *localPersistDriver) Path(req *volume.PathRequest) (*volume.PathRes
 func (driver *localPersistDriver) Unmount(req *volume.UnmountRequest) error {
 	log.Debug("Unmount called")
 
-	driver.mutex.Lock()
-	defer driver.mutex.Unlock()
+	driver.RLock()
+	defer driver.RUnlock()
 
 	_, ok := driver.volumes[req.Name]
 	if !ok {
