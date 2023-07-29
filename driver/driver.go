@@ -28,7 +28,7 @@ type localPersistDriver struct {
 }
 
 type localPersistVolume struct {
-    MountPoint string
+    Mountpoint string
     CreatedAt  string
 }
 
@@ -96,7 +96,7 @@ func (driver *localPersistDriver) Get(req *volume.GetRequest) (*volume.GetRespon
 
 	log.Debugf("Found %s", req.Name)
 
-    return &volume.GetResponse{Volume: &volume.Volume{Name: req.Name, Mountpoint: v.MountPoint}}, nil
+    return &volume.GetResponse{Volume: &volume.Volume{Name: req.Name, Mountpoint: v.Mountpoint, CreatedAt: v.CreatedAt}}, nil
 }
 
 func (driver *localPersistDriver) List() (*volume.ListResponse, error) {
@@ -107,7 +107,7 @@ func (driver *localPersistDriver) List() (*volume.ListResponse, error) {
 
 	var volumes []*volume.Volume
 	for name, v := range driver.volumes {
-		volumes = append(volumes, &volume.Volume{Name: name, Mountpoint: v.MountPoint})
+        volumes = append(volumes, &volume.Volume{Name: name, Mountpoint: v.Mountpoint, CreatedAt: v.CreatedAt})
 	}
 
 	log.Debugf("Found %d volumes", len(volumes))
@@ -160,7 +160,7 @@ func (driver *localPersistDriver) Create(req *volume.CreateRequest) error {
 		return fmt.Errorf("%17s could not create directory %s", " ", mountpoint)
 	}
 
-    vol.MountPoint = mountpoint
+    vol.Mountpoint = mountpoint
     vol.CreatedAt = timestamp
 
 	driver.volumes[req.Name] = vol
@@ -210,7 +210,7 @@ func (driver *localPersistDriver) Mount(req *volume.MountRequest) (*volume.Mount
 		return &volume.MountResponse{}, fmt.Errorf("volume %s not found", req.Name)
 	}
     // Now check if the path still exists
-    p := v.MountPoint
+    p := v.Mountpoint
     f, err := os.Stat(p)
 
 	// If the path does not exist
@@ -240,7 +240,7 @@ func (driver *localPersistDriver) Path(req *volume.PathRequest) (*volume.PathRes
 	}
 	log.Debugf("Returned path %s", v)
 
-	return &volume.PathResponse{Mountpoint: v.MountPoint}, nil
+	return &volume.PathResponse{Mountpoint: v.Mountpoint}, nil
 }
 
 func (driver *localPersistDriver) Unmount(req *volume.UnmountRequest) error {
