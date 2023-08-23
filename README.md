@@ -49,7 +49,7 @@ The `local-persist` plugin gives you the same benefits of standalone Volumes tha
 
 Additionally the `local-persist` plugin allows you to store `docker volume` data wherever you want.
 
-The above two goals could be achieved by using bind mounts, but these come with [drawbacks](#bind-mounts). The goal of storing data where you want to could be achieved using [named volumes with `driver_opts`](#named-volumes-with-driver_opts), but the data within these volumes will not persist upon deletion. And to be fair, I also made this fork to get some more exerience with Go.
+The above two goals could be achieved by using bind mounts, but these come with [drawbacks](#bind-mounts). The goal of storing data where you want to could be achieved using [named volumes with `driver_opts`](#named-volumes-with-driver_opts), but the data within these volumes will not persist upon deletion. And to be fair, I also made this fork to get some more experience with Go.
 
 ### Bind mounts
 
