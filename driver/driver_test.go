@@ -4,6 +4,7 @@ import (
 	"os"
 	"path"
 	"reflect"
+    "sort"
 	"testing"
 
 	"github.com/docker/go-plugins-helpers/volume"
@@ -181,9 +182,16 @@ func Test_localPersistDriver_List(t *testing.T) {
 				t.Errorf("localPersistDriver.List() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
+            // Sort both slices to ensure deterministic comparison
+            sort.Slice(got.Volumes, func(i, j int) bool {
+                return got.Volumes[i].Name < got.Volumes[j].Name
+            })
+            sort.Slice(tt.want.Volumes, func(i, j int) bool {
+                return tt.want.Volumes[i].Name < tt.want.Volumes[j].Name
+            })
 
             if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("localPersistDriver.List() = %v, want %v", got, tt.want)
+  				t.Errorf("localPersistDriver.List() = %v, want %v", got, tt.want)
 			}
 		})
 	}
